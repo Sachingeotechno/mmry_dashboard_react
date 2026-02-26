@@ -31,3 +31,24 @@ export const fetchBlockKpi = async () => {
         return [];
     }
 };
+
+export const fetchPanchayatKpi = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/panchayat`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching panchayat KPI:", error);
+        return [];
+    }
+};
+
+export const fetchDatewiseKpi = async (date) => {
+    try {
+        const url = date ? `${API_BASE_URL}/datewise?date=${date}` : `${API_BASE_URL}/datewise`;
+        const response = await axios.get(url);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching date-wise KPI:", error);
+        return [];
+    }
+};
