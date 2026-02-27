@@ -90,52 +90,46 @@ const DateWiseDashboard = () => {
 
 
     return (
-        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-in fade-in duration-500">
+        <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-in fade-in duration-500 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen transition-colors">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-                        <Calendar className="w-8 h-8 text-indigo-600" />
+                    <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-3">
+                        <Calendar className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
                         Date-wise Achievement
                     </h1>
-                    <p className="text-slate-500 mt-1 flex items-center gap-2">
-                        <Activity className="w-4 h-4" />
-                        Daily breakdown of total beneficiaries and entries
-                    </p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Detailed performance tracking by specific dates</p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
-                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm w-full md:w-auto h-11">
-                        <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <label className="text-sm font-bold text-slate-600 dark:text-slate-300 ml-2">Select Date:</label>
                         <input
                             type="date"
                             value={selectedDate}
-                            max={new Date().toISOString().split('T')[0]}
                             onChange={(e) => setSelectedDate(e.target.value)}
-                            className="bg-transparent text-sm font-medium text-slate-700 outline-none w-full cursor-pointer h-full"
+                            max={getYesterday()}
+                            className="bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
                         />
                     </div>
-
                     <button
                         onClick={exportToCSV}
-                        className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-lg shadow-sm transition-all font-medium text-sm group w-full sm:w-auto shrink-0"
-                        data-tooltip-id="datewise-tooltip"
-                        data-tooltip-content="Download report as CSV"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 dark:shadow-none transition-all active:scale-95"
                     >
-                        <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
-                        <span>Export CSV</span>
+                        <Download className="w-4 h-4" />
+                        Export Report
                     </button>
                 </div>
             </div>
 
-            {/* Summary Cards */}
-            <div className="mb-8">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex items-center gap-4 hover:shadow-md transition-shadow max-w-sm">
-                    <div className="bg-indigo-50 p-4 rounded-xl">
-                        <Activity className="w-8 h-8 text-indigo-600" />
+            {/* Dashboard Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-5">
+                    <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl">
+                        <Activity className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">Overall Total Achieved</p>
-                        <h2 className="text-3xl font-bold text-slate-800 tracking-tight mt-1">{totalOverallAchieved.toLocaleString()}</h2>
+                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Achievement</p>
+                        <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100">{totalOverallAchieved.toLocaleString()}</h2>
                     </div>
                 </div>
             </div>
@@ -194,8 +188,8 @@ const DateWiseDashboard = () => {
                     </span>
                 </div>
 
-                <div className="overflow-x-auto min-h-[300px]">
-                    <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto min-h-[300px] no-scrollbar">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
                         <thead>
                             <tr className="bg-slate-50/80 border-b border-slate-200">
                                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider sticky top-0 bg-slate-50/90 backdrop-blur z-10 w-1/2">

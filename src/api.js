@@ -22,9 +22,10 @@ export const fetchDistrictKpi = async () => {
     }
 };
 
-export const fetchBlockKpi = async () => {
+export const fetchBlockKpi = async (districtId) => {
     try {
-        const response = await axios.get(`${API_BASE_URL}/block`);
+        const url = districtId ? `${API_BASE_URL}/block?district_id=${districtId}` : `${API_BASE_URL}/block`;
+        const response = await axios.get(url);
         return response.data;
     } catch (error) {
         console.error("Error fetching block KPI:", error);
@@ -32,9 +33,15 @@ export const fetchBlockKpi = async () => {
     }
 };
 
-export const fetchPanchayatKpi = async () => {
+export const fetchPanchayatKpi = async (districtId, blockId) => {
     try {
-        const response = await axios.get(`${API_BASE_URL}/panchayat`);
+        let url = `${API_BASE_URL}/panchayat`;
+        const params = [];
+        if (districtId) params.push(`district_id=${districtId}`);
+        if (blockId) params.push(`block_id=${blockId}`);
+        if (params.length > 0) url += `?${params.join('&')}`;
+
+        const response = await axios.get(url);
         return response.data;
     } catch (error) {
         console.error("Error fetching panchayat KPI:", error);
@@ -49,6 +56,58 @@ export const fetchDatewiseKpi = async (date) => {
         return response.data;
     } catch (error) {
         console.error("Error fetching date-wise KPI:", error);
+        return [];
+    }
+};
+
+// BUSINESS KPI ENDPOINTS
+
+export const fetchBusinessFind10k = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/business/find_10k`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching business find 10k KPI:", error);
+        return [];
+    }
+};
+
+export const fetchBusinessKnowledgeMmry = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/business/knowledge_mmry`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching business knowledge MMRY KPI:", error);
+        return [];
+    }
+};
+
+export const fetchBusinessBefore10k = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/business/before_10k`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching business before 10k KPI:", error);
+        return [];
+    }
+};
+
+export const fetchBusinessUse10k = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/business/use_10k`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching business use 10k KPI:", error);
+        return [];
+    }
+};
+
+export const fetchBusinessUsed10kType = async () => {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/business/used_10k_type`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching business used 10k type KPI:", error);
         return [];
     }
 };
