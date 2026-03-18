@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { fetchOverallKpi, fetchDistrictKpi, fetchBlockKpi, fetchPanchayatKpi } from '../service/datalayer';
+import { fetchOverallKpi, fetchDistrictKpi, fetchBlockKpi, fetchPanchayatKpi } from '../api';
 import { Activity, Target, Trophy, MapPin, Grid, Download, ChevronRight, ArrowLeft, Home, X } from 'lucide-react';
 import { geoPath, geoMercator } from 'd3-geo';
 import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps';
@@ -13,10 +13,6 @@ const normalizeDistrictName = (name) => {
     if (n === 'purba champaran') return 'purbi champaran';
     if (n === 'kaimur (bhabua)') return 'kaimur alias bhabua';
     return n;
-};
-const formatIndianNumber = (num) => {
-    if (num === null || num === undefined) return '0';
-    return num.toLocaleString('en-IN');
 };
 
 const Dashboard = () => {
@@ -219,7 +215,12 @@ const Dashboard = () => {
         }
 
         const totalItems = viewData.length;
-        const currentData = viewData;
+        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+        const safeCurrentPage = Math.min(mainPage, totalPages);
+        const startIndex = Math.max(0, (safeCurrentPage - 1) * itemsPerPage);
+        const endIndex = startIndex + itemsPerPage;
+
+        const currentData = viewData.slice(startIndex, endIndex);
 
         return (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden mt-4 transition-all">
@@ -342,6 +343,30 @@ const Dashboard = () => {
                     </table>
                 </div>
 
+                {/* Pagination Controls */}
+                {totalItems > itemsPerPage && (
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 sticky bottom-0 z-10 transition-colors">
+                        <span className="text-sm text-slate-500 dark:text-slate-400">
+                            Showing <span className="font-semibold text-slate-700 dark:text-slate-200">{startIndex + 1}</span> to <span className="font-semibold text-slate-700 dark:text-slate-200">{Math.min(endIndex, totalItems)}</span> of <span className="font-semibold text-slate-700 dark:text-slate-200">{totalItems}</span> entries
+                        </span>
+                        <div className="flex gap-1.5">
+                            <button
+                                onClick={() => setMainPage(prev => Math.max(1, prev - 1))}
+                                disabled={safeCurrentPage === 1}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${safeCurrentPage === 1 ? 'bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200'}`}
+                            >
+                                Previous
+                            </button>
+                            <button
+                                onClick={() => setMainPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={safeCurrentPage === totalPages}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${safeCurrentPage === totalPages ? 'bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-600 cursor-not-allowed' : 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200'}`}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -512,12 +537,9 @@ const Dashboard = () => {
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-3 flex flex-col gap-2 hover:shadow-md transition-all">
                     <div className="flex items-center gap-2">
                         <div className="bg-blue-50 dark:bg-blue-900/20 p-1.5 rounded-lg"><Target className="w-4 h-4 text-blue-600 dark:text-blue-400" /></div>
-                        <div className="flex flex-col">
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-1 leading-tight">Total Targeted</p>
-                            <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight">(before 16-02-2026)</p>
-                        </div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-1">Total Targeted</p>
                     </div>
-                    <h2 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight truncate" title={overall.Total_Targeted?.toLocaleString('en-IN')}>{formatIndianNumber(overall.Total_Targeted)}</h2>
+                    <h2 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight truncate" title={overall.Total_Targeted?.toLocaleString()}>{overall.Total_Targeted ? overall.Total_Targeted.toLocaleString() : 0}</h2>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-3 flex flex-col gap-2 hover:shadow-md transition-all">
@@ -525,7 +547,7 @@ const Dashboard = () => {
                         <div className="bg-emerald-50 dark:bg-emerald-900/20 p-1.5 rounded-lg"><Trophy className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /></div>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-1">Total Achieved</p>
                     </div>
-                    <h2 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight truncate" title={overall.Total_Achieved?.toLocaleString('en-IN')}>{formatIndianNumber(overall.Total_Achieved)}</h2>
+                    <h2 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight truncate" title={overall.Total_Achieved?.toLocaleString()}>{overall.Total_Achieved ? overall.Total_Achieved.toLocaleString() : 0}</h2>
                 </div>
 
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-3 flex flex-col justify-between hover:shadow-md transition-all relative overflow-hidden">

@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@theme {
+  --color-primary: #3b82f6;
+  --color-secondary: #10b981;
+  --color-background: #f8fafc;
+  --color-card: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased transition-colors duration-300;
+  }
+
+  .dark body {
+    @apply bg-slate-900 text-slate-100;
+  }
+}

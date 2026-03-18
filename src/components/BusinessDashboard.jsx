@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     fetchBusinessFind10k,
     fetchBusinessKnowledgeMmry,
     fetchBusinessBefore10k,
     fetchBusinessUse10k,
     fetchBusinessUsed10kType
-} from '../api';
-import { Briefcase, Activity, TrendingUp, HelpCircle, DollarSign, Award, Download, Building, ChevronLeft, ChevronRight } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+} from '../service/datalayer';
+import { Briefcase, Activity, TrendingUp, HelpCircle, DollarSign, Award, Download, Building, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
+import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -75,6 +80,14 @@ const BusinessDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const chartRefs = {
+        reception: useRef(null),
+        awareness: useRef(null),
+        preSupport: useRef(null),
+        utilization: useRef(null),
+        sectoral: useRef(null)
+    };
+
     useEffect(() => {
         const loadAllData = async () => {
             setLoading(true);
@@ -94,7 +107,7 @@ const BusinessDashboard = () => {
                 setUsed10kTypeData(d5 || []);
             } catch (err) {
                 setError('Failed to load business KPI data');
-                console.error(err);
+                toast.error('Failed to load business KPI data: ' + (err.message || err));
             } finally {
                 setLoading(false);
             }
@@ -133,8 +146,8 @@ const BusinessDashboard = () => {
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
             return (
-                <div className="bg-white/95 backdrop-blur-sm border border-slate-200 p-4 rounded-xl shadow-xl z-50">
-                    <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-2">{label}</p>
+                <div className="bg-white/95 backdrop-blur-sm border border-slate-200 p-4 rounded-xl shadow-xl z-50" style={{ borderColor: '#e2e8f0' }}>
+                    <p className="font-bold text-slate-800 mb-2 border-b border-slate-100 pb-2" style={{ borderBottomColor: '#f1f5f9' }}>{label}</p>
                     {payload.map((entry, index) => (
                         <p key={`item-${index}`} style={{ color: entry.color }} className="text-sm font-medium flex items-center justify-between gap-4">
                             <span>{entry.name}:</span>
@@ -147,281 +160,536 @@ const BusinessDashboard = () => {
         return null;
     };
 
-    const handleExportCSV = () => {
-        let csvContent = "data:text/csv;charset=utf-8,";
-        const addSection = (title, data, columns) => {
-            csvContent += `\n${title.toUpperCase()}\n`;
-            csvContent += columns.map(c => c.header).join(",") + "\n";
-            data.forEach(item => {
-                csvContent += columns.map(c => item[c.key]?.toString().replace(/,/g, "") || "0").join(",") + "\n";
-            });
-        };
-
-
-        addSection("Reception Status", find10kData, [{ header: 'District', key: 'district_name' }, { header: 'Yes', key: 'Yes_Count' }, { header: 'No', key: 'No_Count' }]);
-        addSection("Awareness Levels", knowledgeData, [{ header: 'District', key: 'district_name' }, { header: 'Yes', key: 'Yes_Count' }, { header: 'No', key: 'No_Count' }]);
-        addSection("Pre-Support Categories", before10kData, [
-            { header: 'District', key: 'district_name' },
-            { header: 'Employee', key: 'Employee' },
-            { header: 'Farm', key: 'Farm' },
-            { header: 'Labour', key: 'Labour' },
-            { header: 'Livestock', key: 'Livestock' },
-            { header: 'Own Business', key: 'Own_Business' },
-            { header: 'Others', key: 'Others' }
-        ]);
-        addSection("Fund Utilization", use10kData, [
-            { header: 'District', key: 'district_name' },
-            { header: 'Not Invested', key: 'Not_Invested' },
-            { header: 'Old Business', key: 'Spent_in_Old_Business' },
-            { header: 'New Business', key: 'Start_New_Business' }
-        ]);
-        addSection("Sectoral Focus", used10kTypeData, [
-            { header: 'District', key: 'district_name' },
-            { header: 'No Business', key: 'No_Business' },
-            { header: 'Farm', key: 'Farm' },
-            { header: 'Livestock', key: 'Livestock' },
-            { header: 'Service Based', key: 'Service_Based' },
-            { header: 'Skill Based', key: 'Skill_Based' },
-            { header: 'Small Business', key: 'Small_Business' }
-        ]);
-
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `mmry_business_report_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const handlePrint = () => {
+        window.print();
     };
+    const handleExportExcel = () => {
+        try {
+            const wb = XLSX.utils.book_new();
 
+            const addSheet = (sheetName, subtitle, data, columns) => {
+                // Calculate totals for numerical columns
+                const totals = columns.map(c => {
+                    if (c.key === 'district_name' || c.header.toLowerCase().includes('district')) return 'TOTAL';
+                    const sum = data.reduce((acc, item) => {
+                        const val = parseFloat(item[c.key]);
+                        return acc + (isNaN(val) ? 0 : val);
+                    }, 0);
+                    return sum;
+                });
 
+                const wsData = [
+                    [subtitle],
+                    columns.map(c => c.header),
+                    ...data.map(item => columns.map(c => item[c.key] ?? "0")),
+                    totals
+                ];
+
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+                // Merge subtitle across columns
+                if (!ws['!merges']) ws['!merges'] = [];
+                ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: columns.length - 1 } });
+
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            };
+
+            addSheet(
+                "Support Reception",
+                "Beneficiaries who confirmed receiving ₹10,000",
+                find10kData,
+                [{ header: 'District', key: 'district_name' }, { header: 'Yes', key: 'Yes_Count' }, { header: 'No', key: 'No_Count' }]
+            );
+
+            addSheet(
+                "Scheme Awareness",
+                "Beneficiary knowledge about the MMRY scheme",
+                knowledgeData,
+                [{ header: 'District', key: 'district_name' }, { header: 'Yes', key: 'Yes_Count' }, { header: 'No', key: 'No_Count' }]
+            );
+
+            addSheet(
+                "Pre-Support Categories",
+                "Initial business activities before receiving financial support",
+                before10kData,
+                [
+                    { header: 'District', key: 'district_name' },
+                    { header: 'Employee', key: 'Employee' },
+                    { header: 'Farm', key: 'Farm' },
+                    { header: 'Labour', key: 'Labour' },
+                    { header: 'Livestock', key: 'Livestock' },
+                    { header: 'Own Business', key: 'Own_Business' },
+                    { header: 'Others', key: 'Others' }
+                ]
+            );
+
+            addSheet(
+                "Fund Utilization",
+                "How beneficiaries decided to use the received capital",
+                use10kData,
+                [
+                    { header: 'District', key: 'district_name' },
+                    { header: 'Not Invested', key: 'Not_Invested' },
+                    { header: 'Old Business', key: 'Spent_in_Old_Business' },
+                    { header: 'New Business', key: 'Start_New_Business' }
+                ]
+            );
+
+            addSheet(
+                "Sectoral Focus",
+                "Specific sectors where funds was utilized",
+                used10kTypeData,
+                [
+                    { header: 'District', key: 'district_name' },
+                    { header: 'No Business', key: 'No_Business' },
+                    { header: 'Farm', key: 'Farm' },
+                    { header: 'Livestock', key: 'Livestock' },
+                    { header: 'Service Based', key: 'Service_Based' },
+                    { header: 'Skill Based', key: 'Skill_Based' },
+                    { header: 'Small Business', key: 'Small_Business' }
+                ]
+            );
+
+            XLSX.writeFile(wb, `mmry_business_report_${new Date().toISOString().split('T')[0]}.xlsx`);
+            toast.success('Excel report exported successfully!');
+        } catch (error) {
+            console.error('Export failed:', error);
+            toast.error('Failed to export Excel report');
+        }
+    };
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-in fade-in duration-500 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen transition-colors duration-300">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-4">
-                        <Briefcase className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
-                        Business Performance
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-bold mt-2 text-lg">Detailed analysis of fund usage and entrepreneurial impact</p>
-                </div>
-
-                <button
-                    onClick={handleExportCSV}
-                    className="flex items-center gap-3 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-200 dark:shadow-none transition-all active:scale-95 group"
-                >
-                    <Download className="w-5 h-5 group-hover:animate-bounce" />
-                    Export Report (CSV)
-                </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
-
-                {/* KPI 1: Found 10k Amount */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
-                        <div>
-                            <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                                <DollarSign className="w-6 h-6 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 p-1.5 rounded-lg" />
-                                Support Reception
-                            </h3>
-                            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Beneficiaries who confirmed receiving ₹10,000</p>
-                        </div>
-                    </div>
-
-                    <div className="h-[300px] w-full mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={transformForStackedBar(find10kData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 600 }} hide />
-                                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
-                                <Bar dataKey="Yes_Count" name="Received (Yes)" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} barSize={24} />
-                                <Bar dataKey="No_Count" name="Not Received (No)" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={24} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <PaginatedTable
-                        data={find10kData}
-                        columns={[
-                            { header: 'District', key: 'district_name' },
-                            { header: 'Yes', key: 'Yes_Count' },
-                            { header: 'No', key: 'No_Count' },
-                            { header: 'Yes %', key: 'Yes_Rate_Percentage' }
-                        ]}
-                        title="Reception Status"
-                    />
-                </div>
-
-                {/* KPI 2: Knowledge about MMRY */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
-                        <div>
-                            <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                                <HelpCircle className="w-6 h-6 text-blue-500 bg-blue-50 dark:bg-blue-900/30 p-1.5 rounded-lg" />
-                                Scheme Awareness
-                            </h3>
-                            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Beneficiary knowledge about the MMRY scheme</p>
-                        </div>
-                    </div>
-
-                    <div className="h-[300px] w-full mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={transformForStackedBar(knowledgeData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 600 }} hide />
-                                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
-                                <Bar dataKey="Yes_Count" name="Aware (Yes)" stackId="a" fill="#3b82f6" radius={[0, 0, 4, 4]} barSize={24} />
-                                <Bar dataKey="No_Count" name="Unaware (No)" stackId="a" fill="#94a3b8" radius={[4, 4, 0, 0]} barSize={24} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <PaginatedTable
-                        data={knowledgeData}
-                        columns={[
-                            { header: 'District', key: 'district_name' },
-                            { header: 'Yes', key: 'Yes_Count' },
-                            { header: 'No', key: 'No_Count' },
-                            { header: 'Yes %', key: 'Yes_Rate_Percentage' }
-                        ]}
-                        title="Awareness Levels"
-                    />
-                </div>
-            </div>
-
-            {/* KPI 3: Business Before 10k */}
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 mb-10 hover:border-indigo-100 transition-all duration-300">
-                <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+            {/* Main Dashboard UI - Hidden during print */}
+            <div className="no-print">
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
                     <div>
-                        <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                            <Building className="w-6 h-6 text-amber-500 bg-amber-50 dark:bg-amber-900/30 p-1.5 rounded-lg" />
-                            Pre-Support Categories
-                        </h3>
-                        <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Initial business activities before receiving financial support</p>
+                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-4">
+                            <Briefcase className="w-10 h-10 text-indigo-600 dark:text-indigo-400" />
+                            Business Performance
+                        </h1>
+                        <p className="text-slate-500 dark:text-slate-400 font-bold mt-2 text-lg">Detailed analysis of fund usage and entrepreneurial impact</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4">
+                        <button
+                            onClick={handleExportExcel}
+                            className="flex items-center gap-3 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-200 dark:shadow-none transition-all active:scale-95 group"
+                        >
+                            <Download className="w-5 h-5 group-hover:animate-bounce" />
+                            Export Report (Excel)
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="flex items-center gap-3 px-6 py-3.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-800 text-white rounded-2xl font-black text-sm shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-95 group"
+                        >
+                            <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                            Export Report (PDF)
+                        </button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                    <div className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={before10kData} margin={{ top: 20, right: 10, left: -25, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="district_name" hide />
-                                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 600, color: '#94a3b8' }} />
-                                <Bar dataKey="Employee" stackId="a" fill={COLORS[0]} />
-                                <Bar dataKey="Farm" stackId="a" fill={COLORS[1]} />
-                                <Bar dataKey="Labour" stackId="a" fill={COLORS[2]} />
-                                <Bar dataKey="Livestock" stackId="a" fill={COLORS[3]} />
-                                <Bar dataKey="Own_Business" stackId="a" fill={COLORS[4]} />
-                                <Bar dataKey="Others" stackId="a" fill={COLORS[5]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="flex flex-col justify-center">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
+
+                    {/* KPI 1: Found 10k Amount */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                                    <DollarSign className="w-6 h-6 text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 p-1.5 rounded-lg" />
+                                    Support Reception
+                                </h3>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Beneficiaries who confirmed receiving ₹10,000</p>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] w-full mb-4" ref={chartRefs.reception}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={transformForStackedBar(find10kData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 600 }} hide />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
+                                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
+                                    <Bar dataKey="Yes_Count" name="Received (Yes)" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} barSize={24} />
+                                    <Bar dataKey="No_Count" name="Not Received (No)" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={24} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
                         <PaginatedTable
-                            data={before10kData}
+                            data={find10kData}
+                            columns={[
+                                { header: 'District', key: 'district_name' },
+                                { header: 'Yes', key: 'Yes_Count' },
+                                { header: 'No', key: 'No_Count' },
+                                { header: 'Yes %', key: 'Yes_Rate_Percentage' }
+                            ]}
+                            title="Reception Status"
+                        />
+                    </div>
+
+                    {/* KPI 2: Knowledge about MMRY */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                                    <HelpCircle className="w-6 h-6 text-blue-500 bg-blue-50 dark:bg-blue-900/30 p-1.5 rounded-lg" />
+                                    Scheme Awareness
+                                </h3>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Beneficiary knowledge about the MMRY scheme</p>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] w-full mb-4" ref={chartRefs.awareness}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={transformForStackedBar(knowledgeData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 600 }} hide />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
+                                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
+                                    <Bar dataKey="Yes_Count" name="Aware (Yes)" stackId="a" fill="#3b82f6" radius={[0, 0, 4, 4]} barSize={24} />
+                                    <Bar dataKey="No_Count" name="Unaware (No)" stackId="a" fill="#94a3b8" radius={[4, 4, 0, 0]} barSize={24} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <PaginatedTable
+                            data={knowledgeData}
+                            columns={[
+                                { header: 'District', key: 'district_name' },
+                                { header: 'Yes', key: 'Yes_Count' },
+                                { header: 'No', key: 'No_Count' },
+                                { header: 'Yes %', key: 'Yes_Rate_Percentage' }
+                            ]}
+                            title="Awareness Levels"
+                        />
+                    </div>
+                </div>
+
+                {/* KPI 3: Business Before 10k */}
+                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 mb-10 hover:border-indigo-100 transition-all duration-300">
+                    <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                        <div>
+                            <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                                <Building className="w-6 h-6 text-amber-500 bg-amber-50 dark:bg-amber-900/30 p-1.5 rounded-lg" />
+                                Pre-Support Categories
+                            </h3>
+                            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Initial business activities before receiving financial support</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                        <div className="h-[400px]" ref={chartRefs.preSupport}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={before10kData} margin={{ top: 20, right: 10, left: -25, bottom: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="district_name" hide />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
+                                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 600, color: '#94a3b8' }} />
+                                    <Bar dataKey="Employee" stackId="a" fill={COLORS[0]} />
+                                    <Bar dataKey="Farm" stackId="a" fill={COLORS[1]} />
+                                    <Bar dataKey="Labour" stackId="a" fill={COLORS[2]} />
+                                    <Bar dataKey="Livestock" stackId="a" fill={COLORS[3]} />
+                                    <Bar dataKey="Own_Business" stackId="a" fill={COLORS[4]} />
+                                    <Bar dataKey="Others" stackId="a" fill={COLORS[5]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="flex flex-col justify-center">
+                            <PaginatedTable
+                                data={before10kData}
+                                columns={[
+                                    { header: 'District', key: 'district_name' },
+                                    { header: 'Farm', key: 'Farm' },
+                                    { header: 'Labour', key: 'Labour' },
+                                    { header: 'Business', key: 'Own_Business' },
+                                    { header: 'Livestock', key: 'Livestock' }
+                                ]}
+                                title="Pre-Support Breakdown"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+
+                    {/* KPI 4: Use of 10k Amount */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                                    <Activity className="w-6 h-6 text-purple-500 bg-purple-50 dark:bg-purple-900/30 p-1.5 rounded-lg" />
+                                    Fund Utilization
+                                </h3>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">How beneficiaries decided to use the received capital</p>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] w-full mb-4" ref={chartRefs.utilization}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={use10kData} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="district_name" hide />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
+                                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
+                                    <Bar dataKey="Spent_in_Old_Business" name="Old Bussiness" stackId="a" fill="#f59e0b" />
+                                    <Bar dataKey="Start_New_Business" name="New Bussiness" stackId="a" fill="#8b5cf6" />
+                                    <Bar dataKey="Not_Invested" name="Not Invested" stackId="a" fill="#94a3b8" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <PaginatedTable
+                            data={use10kData}
+                            columns={[
+                                { header: 'District', key: 'district_name' },
+                                { header: 'Old Bussiness', key: 'Spent_in_Old_Business' },
+                                { header: 'New Business', key: 'Start_New_Business' },
+                                { header: 'Not Invested', key: 'Not_Invested' }
+                            ]}
+                            title="Utilization Type"
+                        />
+                    </div>
+
+                    {/* KPI 5: New Business Type */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
+                                    <Award className="w-6 h-6 text-pink-500 bg-pink-50 dark:bg-pink-900/30 p-1.5 rounded-lg" />
+                                    Sectoral Focus
+                                </h3>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Specific sectors where funds was utilized</p>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] w-full mb-4" ref={chartRefs.sectoral}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={used10kTypeData} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="district_name" hide />
+                                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                                    <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
+                                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 600, color: '#94a3b8' }} />
+                                    <Bar dataKey="Farm" fill={COLORS[1]} stackId="a" />
+                                    <Bar dataKey="Livestock" fill={COLORS[3]} stackId="a" />
+                                    <Bar dataKey="Small_Business" fill={COLORS[0]} stackId="a" />
+                                    <Bar dataKey="Service_Based" fill={COLORS[4]} stackId="a" />
+                                    <Bar dataKey="Skill_Based" fill={COLORS[5]} stackId="a" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <PaginatedTable
+                            data={used10kTypeData}
                             columns={[
                                 { header: 'District', key: 'district_name' },
                                 { header: 'Farm', key: 'Farm' },
-                                { header: 'Labour', key: 'Labour' },
-                                { header: 'Business', key: 'Own_Business' },
-                                { header: 'Livestock', key: 'Livestock' }
+                                { header: 'Livestock', key: 'Livestock' },
+                                { header: 'Small Business', key: 'Small_Business' },
+                                { header: 'Service Based', key: 'Service_Based' }
                             ]}
-                            title="Pre-Support Breakdown"
+                            title="Sectoral Distribution"
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-
-                {/* KPI 4: Use of 10k Amount */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
-                        <div>
-                            <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                                <Activity className="w-6 h-6 text-purple-500 bg-purple-50 dark:bg-purple-900/30 p-1.5 rounded-lg" />
-                                Fund Utilization
-                            </h3>
-                            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">How beneficiaries decided to use the received capital</p>
-                        </div>
+            {/* Print Only Report Section */}
+            <div className="print-only p-8 bg-white min-h-screen">
+                <div className="print-page mb-12 border-b pb-8">
+                    <h1 className="text-4xl font-black text-slate-900 mb-2">Business Performance Report</h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Beneficiary Dashboard Analysis • {new Date().toLocaleDateString()}</p>
+                </div>
+                
+                <div className="print-page page-break mb-12">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">1. Support Reception</h2>
+                    <p className="text-slate-500 mb-6 font-medium">Beneficiaries who confirmed receiving ₹10,000 financial support.</p>
+                    <div className="w-full flex justify-center mb-8">
+                        <BarChart width={740} height={400} data={transformForStackedBar(find10kData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }}/>
+                            <Bar dataKey="Yes_Count" name="Received (Yes)" stackId="a" fill="#10b981" isAnimationActive={false} />
+                            <Bar dataKey="No_Count" name="Not Received (No)" stackId="a" fill="#f43f5e" isAnimationActive={false} />
+                        </BarChart>
                     </div>
-
-                    <div className="h-[300px] w-full mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={use10kData} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="district_name" hide />
-                                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }} />
-                                <Bar dataKey="Spent_in_Old_Business" name="Old Biz" stackId="a" fill="#f59e0b" />
-                                <Bar dataKey="Start_New_Business" name="New Biz" stackId="a" fill="#8b5cf6" />
-                                <Bar dataKey="Not_Invested" name="Not Invested" stackId="a" fill="#94a3b8" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    <PaginatedTable
-                        data={use10kData}
-                        columns={[
-                            { header: 'District', key: 'district_name' },
-                            { header: 'Old Biz', key: 'Spent_in_Old_Business' },
-                            { header: 'New Biz', key: 'Start_New_Business' },
-                            { header: 'None', key: 'Not_Invested' }
-                        ]}
-                        title="Utilization Type"
-                    />
+                    <table className="w-full border-collapse border border-slate-200 text-xs text-left">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="border border-slate-200 p-3 text-slate-600 font-bold uppercase tracking-wider">District</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Yes</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">No</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Yes %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {find10kData.map((item, i) => (
+                                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}>
+                                    <td className="border border-slate-200 p-3 text-slate-700 font-medium">{item.district_name}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Yes_Count}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.No_Count}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-900 font-bold">{item.Yes_Rate_Percentage}%</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
 
-                {/* KPI 5: New Business Type */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
-                    <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-700 pb-6">
-                        <div>
-                            <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                                <Award className="w-6 h-6 text-pink-500 bg-pink-50 dark:bg-pink-900/30 p-1.5 rounded-lg" />
-                                Sectoral Focus
-                            </h3>
-                            <p className="text-sm text-slate-400 dark:text-slate-500 font-medium mt-1">Specific sectors where funds was utilized</p>
-                        </div>
+                <div className="print-page page-break mb-12">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">2. Scheme Awareness</h2>
+                    <p className="text-slate-500 mb-6 font-medium">Beneficiary knowledge and understanding of the MMRY scheme guidelines.</p>
+                    <div className="w-full flex justify-center mb-8">
+                        <BarChart width={740} height={400} data={transformForStackedBar(knowledgeData, ['Yes_Count', 'No_Count'])} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }}/>
+                            <Bar dataKey="Yes_Count" name="Aware (Yes)" stackId="a" fill="#3b82f6" isAnimationActive={false} />
+                            <Bar dataKey="No_Count" name="Unaware (No)" stackId="a" fill="#94a3b8" isAnimationActive={false} />
+                        </BarChart>
                     </div>
+                    <table className="w-full border-collapse border border-slate-200 text-xs text-left">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="border border-slate-200 p-3 text-slate-600 font-bold uppercase tracking-wider">District</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Yes</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">No</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Yes %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {knowledgeData.map((item, i) => (
+                                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}>
+                                    <td className="border border-slate-200 p-3 text-slate-700 font-medium">{item.district_name}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Yes_Count}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.No_Count}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-900 font-bold">{item.Yes_Rate_Percentage}%</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-                    <div className="h-[300px] w-full mb-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={used10kTypeData} margin={{ top: 20, right: 0, left: -25, bottom: 40 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-700" />
-                                <XAxis dataKey="district_name" hide />
-                                <YAxis tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc', opacity: 0.1 }} />
-                                <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px', fontWeight: 600, color: '#94a3b8' }} />
-                                <Bar dataKey="Farm" fill={COLORS[1]} stackId="a" />
-                                <Bar dataKey="Livestock" fill={COLORS[3]} stackId="a" />
-                                <Bar dataKey="Small_Business" fill={COLORS[0]} stackId="a" />
-                                <Bar dataKey="Service_Based" fill={COLORS[4]} stackId="a" />
-                                <Bar dataKey="Skill_Based" fill={COLORS[5]} stackId="a" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="print-page page-break mb-12">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">3. Pre-Support Categories</h2>
+                    <p className="text-slate-500 mb-6 font-medium">Initial occupations of beneficiaries prior to scheme intervention.</p>
+                    <div className="w-full flex justify-center mb-8">
+                        <BarChart width={740} height={400} data={before10kData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="district_name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }}/>
+                            <Bar dataKey="Farm" stackId="a" fill={COLORS[0]} isAnimationActive={false} />
+                            <Bar dataKey="Labour" stackId="a" fill={COLORS[1]} isAnimationActive={false} />
+                            <Bar dataKey="Own_Business" name="Business" stackId="a" fill={COLORS[2]} isAnimationActive={false} />
+                            <Bar dataKey="Livestock" stackId="a" fill={COLORS[3]} isAnimationActive={false} />
+                            <Bar dataKey="Others" stackId="a" fill={COLORS[4]} isAnimationActive={false} />
+                        </BarChart>
                     </div>
+                    <table className="w-full border-collapse border border-slate-200 text-xs text-left">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="border border-slate-200 p-3 text-slate-600 font-bold uppercase tracking-wider">District</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Farm</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Labour</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Business</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Livestock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {before10kData.map((item, i) => (
+                                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}>
+                                    <td className="border border-slate-200 p-3 text-slate-700 font-medium">{item.district_name}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Farm}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Labour}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Own_Business}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Livestock}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-                    <PaginatedTable
-                        data={used10kTypeData}
-                        columns={[
-                            { header: 'District', key: 'district_name' },
-                            { header: 'Farm', key: 'Farm' },
-                            { header: 'Livestock', key: 'Livestock' },
-                            { header: 'Small Biz', key: 'Small_Business' },
-                            { header: 'Service', key: 'Service_Based' }
-                        ]}
-                        title="Sectoral Distribution"
-                    />
+                <div className="print-page page-break mb-12">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">4. Fund Utilization</h2>
+                    <p className="text-slate-500 mb-6 font-medium">Strategic allocation of received funds across new and existing ventures.</p>
+                    <div className="w-full flex justify-center mb-8">
+                        <BarChart width={740} height={400} data={use10kData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="district_name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }}/>
+                            <Bar dataKey="Spent_in_Old_Business" name="Old Bussiness" stackId="a" fill="#f59e0b" isAnimationActive={false} />
+                            <Bar dataKey="Start_New_Business" name="New Bussiness" stackId="a" fill="#8b5cf6" isAnimationActive={false} />
+                            <Bar dataKey="Not_Invested" name="Not Invested" stackId="a" fill="#94a3b8" isAnimationActive={false} />
+                        </BarChart>
+                    </div>
+                    <table className="w-full border-collapse border border-slate-200 text-sm">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="border border-slate-200 p-3 text-slate-600 font-bold uppercase tracking-wider text-left">District</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Old Business</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">New Business</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Not Invested</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {use10kData.map((item, i) => (
+                                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}>
+                                    <td className="border border-slate-200 p-3 text-slate-700 font-medium">{item.district_name}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Spent_in_Old_Business}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Start_New_Business}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Not_Invested}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="print-page">
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">5. Sectoral Focus</h2>
+                    <p className="text-slate-500 mb-6 font-medium">Distribution of micro-enterprise activities enabled by the scheme.</p>
+                    <div className="w-full flex justify-center mb-8">
+                        <BarChart width={740} height={400} data={used10kTypeData} margin={{ top: 20, right: 30, left: 20, bottom: 50 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="district_name" angle={-45} textAnchor="end" height={60} interval={0} tick={{ fontSize: 10, fill: '#64748b' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                            <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px' }}/>
+                            <Bar dataKey="Farm" fill={COLORS[0]} stackId="a" isAnimationActive={false} />
+                            <Bar dataKey="Livestock" fill={COLORS[1]} stackId="a" isAnimationActive={false} />
+                            <Bar dataKey="Small_Business" fill={COLORS[2]} stackId="a" isAnimationActive={false} />
+                            <Bar dataKey="Service_Based" fill={COLORS[3]} stackId="a" isAnimationActive={false} />
+                            <Bar dataKey="Skill_Based" fill={COLORS[4]} stackId="a" isAnimationActive={false} />
+                        </BarChart>
+                    </div>
+                    <table className="w-full border-collapse border border-slate-200 text-xs text-left">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="border border-slate-200 p-3 text-slate-600 font-bold uppercase tracking-wider">District</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Farm</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Livestock</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Small Business</th>
+                                <th className="border border-slate-200 p-3 text-right text-slate-600 font-bold uppercase tracking-wider">Service Based</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {used10kTypeData.map((item, i) => (
+                                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}>
+                                    <td className="border border-slate-200 p-3 text-slate-700 font-medium">{item.district_name}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Farm}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Livestock}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Small_Business}</td>
+                                    <td className="border border-slate-200 p-3 text-right text-slate-700">{item.Service_Based}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

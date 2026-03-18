@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchDatewiseKpi } from '../service/datalayer';
+import { fetchDatewiseKpi } from '../api';
 import { Calendar, Activity, ChevronRight, ChevronLeft, Download } from 'lucide-react';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
