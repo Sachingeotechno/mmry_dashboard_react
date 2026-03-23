@@ -24,8 +24,14 @@
 }
 
 @media print {
+
   /* Hide standard dashboard padding and other elements */
-  .p-4, .md\:p-6, .lg\:p-8, .max-w-7xl, .mx-auto, .min-h-screen {
+  .p-4,
+  .md\:p-6,
+  .lg\:p-8,
+  .max-w-7xl,
+  .mx-auto,
+  .min-h-screen {
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
@@ -35,7 +41,7 @@
   .no-print {
     display: none !important;
   }
-  
+
   .print-only {
     display: block !important;
     visibility: visible !important;
@@ -68,7 +74,8 @@
 
   .print-page {
     padding: 2mm;
-    width: 200mm; /* A4 width (210mm) minus 5mm margins (10mm total) */
+    width: 200mm;
+    /* A4 width (210mm) minus 5mm margins (10mm total) */
     margin: 0 auto;
     box-sizing: border-box;
   }
