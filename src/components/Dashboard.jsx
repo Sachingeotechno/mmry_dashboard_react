@@ -221,6 +221,11 @@ const Dashboard = () => {
         const totalItems = viewData.length;
         const currentData = viewData;
 
+        // Calculate totals for the main table (entire dataset)
+        const totalTargeted = viewData.reduce((sum, item) => sum + (item.total_targeted || 0), 0);
+        const totalAchieved = viewData.reduce((sum, item) => sum + (item.total_achieved || 0), 0);
+        const totalRate = totalTargeted > 0 ? ((totalAchieved / totalTargeted) * 100).toFixed(1) : 0;
+
         return (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col flex-1 min-h-0 overflow-hidden mt-4 transition-all">
                 <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
@@ -338,6 +343,24 @@ const Dashboard = () => {
                                     );
                                 })
                             )}
+                            {/* TOTAL Row */}
+                            {!loadingDrillDown && viewData.length > 0 && (
+                                <tr className="bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group border-t-2 border-slate-300 dark:border-slate-600">
+                                    <td className="px-6 py-4 whitespace-nowrap font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-3">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                        TOTAL
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-slate-800 dark:text-slate-200">
+                                        {totalTargeted.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-indigo-700 dark:text-indigo-400">
+                                        {totalAchieved.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-emerald-700 dark:text-emerald-400">
+                                        {totalRate}%
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -365,6 +388,12 @@ const Dashboard = () => {
         }
 
         const totalItems = viewData.length;
+
+        // Calculate totals for the modal table (entire dataset, not just paginated)
+        const totalTargeted = viewData.reduce((sum, item) => sum + (item.total_targeted || 0), 0);
+        const totalAchieved = viewData.reduce((sum, item) => sum + (item.total_achieved || 0), 0);
+        const totalRate = totalTargeted > 0 ? ((totalAchieved / totalTargeted) * 100).toFixed(1) : 0;
+
         const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
         const safeModalPage = Math.min(modalPage, totalPages);
         const startIndex = Math.max(0, (safeModalPage - 1) * itemsPerPage);
@@ -451,6 +480,24 @@ const Dashboard = () => {
                                         </tr>
                                     );
                                 })
+                            )}
+                            {/* TOTAL Row */}
+                            {!loadingDrillDown && viewData.length > 0 && (
+                                <tr className="bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-100 transition-colors group border-t-2 border-slate-300 dark:border-slate-600">
+                                    <td className="px-6 py-4 whitespace-nowrap font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-3">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                        TOTAL
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-slate-800 dark:text-slate-200">
+                                        {totalTargeted.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-indigo-700 dark:text-indigo-400">
+                                        {totalAchieved.toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right font-black text-emerald-700 dark:text-emerald-400">
+                                        {totalRate}%
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table>

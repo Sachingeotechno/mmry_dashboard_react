@@ -66,6 +66,18 @@ const BusinessStatistics = () => {
             getVal(d.NotStart)
         ]);
 
+        if (data.length > 0) {
+            rows.push([
+                '"TOTAL"',
+                data.reduce((sum, item) => sum + getVal(item.Livestock), 0),
+                data.reduce((sum, item) => sum + getVal(item.SkillBase), 0),
+                data.reduce((sum, item) => sum + getVal(item.SmallBusiness), 0),
+                data.reduce((sum, item) => sum + getVal(item.ServiceBased), 0),
+                data.reduce((sum, item) => sum + getVal(item.Other), 0),
+                data.reduce((sum, item) => sum + getVal(item.NotStart), 0)
+            ]);
+        }
+
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -84,6 +96,14 @@ const BusinessStatistics = () => {
 
     const isDistrictView = !selectedDistrict;
     const title = isDistrictView ? 'District-wise Business Apply Statistics' : `Block-wise Business Apply Statistics in ${selectedDistrict}`;
+
+    // Calculate totals
+    const totalLivestock = data.reduce((sum, item) => sum + getVal(item.Livestock), 0);
+    const totalSkillBase = data.reduce((sum, item) => sum + getVal(item.SkillBase), 0);
+    const totalSmallBusiness = data.reduce((sum, item) => sum + getVal(item.SmallBusiness), 0);
+    const totalServiceBased = data.reduce((sum, item) => sum + getVal(item.ServiceBased), 0);
+    const totalOther = data.reduce((sum, item) => sum + getVal(item.Other), 0);
+    const totalNotStart = data.reduce((sum, item) => sum + getVal(item.NotStart), 0);
 
     return (
         <div className="p-4 max-w-7xl mx-auto min-h-screen flex flex-col bg-slate-50/50 dark:bg-slate-900/50 pb-12 transition-colors duration-300">
@@ -204,6 +224,21 @@ const BusinessStatistics = () => {
                                         <td className="px-5 py-3 text-rose-600 dark:text-rose-400 text-right font-medium">{getVal(item.NotStart).toLocaleString('en-IN')}</td>
                                     </tr>
                                 ))
+                            )}
+                            {/* TOTAL Row */}
+                            {!loading && data.length > 0 && (
+                                <tr className="bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group border-t-2 border-slate-300 dark:border-slate-600">
+                                    <td className="px-5 py-4 font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-3 sticky left-0 z-10 bg-slate-100 dark:bg-slate-800/80 shadow-[1px_0_0_0_rgba(241,245,249,1)] dark:shadow-[1px_0_0_0_rgba(51,65,85,0.5)]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                        TOTAL
+                                    </td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalLivestock.toLocaleString('en-IN')}</td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalSkillBase.toLocaleString('en-IN')}</td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalSmallBusiness.toLocaleString('en-IN')}</td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalServiceBased.toLocaleString('en-IN')}</td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalOther.toLocaleString('en-IN')}</td>
+                                    <td className="px-5 py-4 text-rose-700 dark:text-rose-400 text-right font-black">{totalNotStart.toLocaleString('en-IN')}</td>
+                                </tr>
                             )}
                         </tbody>
                     </table>

@@ -84,6 +84,17 @@ export const fetchDatewiseKpi = async (date) => {
     }
 };
 
+export const fetchAchievementByDateRange = async (fdate, tdate) => {
+    try {
+        const url = `/Report/acheivmentbydaterange?fdate=${fdate}&tdate=${tdate}`;
+        const response = await service.fetchData(url);
+        return response.statistics || [];
+    } catch (error) {
+        toast.error(`Error fetching date-wise achievement: ${error.details || error.message || "Unknown error"}`);
+        return [];
+    }
+};
+
 // BUSINESS KPI ENDPOINTS
 
 export const fetchBusinessFind10k = async () => {

@@ -61,6 +61,19 @@ const SurveyStatistics = () => {
             d.Survey_Completed_Beneficiary || 0
         ]);
 
+        if (data.length > 0) {
+            rows.push([
+                '"TOTAL"',
+                data.reduce((sum, item) => sum + (item.Total_SHG || 0), 0),
+                data.reduce((sum, item) => sum + (item.Total_Mapped_SHG || 0), 0),
+                data.reduce((sum, item) => sum + (item.Total_Beneficiary || 0), 0),
+                data.reduce((sum, item) => sum + (item.Total_CM || 0), 0),
+                data.reduce((sum, item) => sum + (item.Total_Mapped_CM || 0), 0),
+                data.reduce((sum, item) => sum + (item.Total_Mapped_Beneficiary || 0), 0),
+                data.reduce((sum, item) => sum + (item.Survey_Completed_Beneficiary || 0), 0)
+            ]);
+        }
+
         const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -79,6 +92,15 @@ const SurveyStatistics = () => {
 
     const isDistrictView = !selectedDistrict;
     const title = isDistrictView ? 'District-wise Survey Statistics' : `Block-wise Survey Statistics in ${selectedDistrict}`;
+
+    // Calculate totals
+    const totalSHG = data.reduce((sum, item) => sum + (item.Total_SHG || 0), 0);
+    const totalMappedSHG = data.reduce((sum, item) => sum + (item.Total_Mapped_SHG || 0), 0);
+    const totalCM = data.reduce((sum, item) => sum + (item.Total_CM || 0), 0);
+    const totalMappedCM = data.reduce((sum, item) => sum + (item.Total_Mapped_CM || 0), 0);
+    const totalBeneficiary = data.reduce((sum, item) => sum + (item.Total_Beneficiary || 0), 0);
+    const totalMappedBeneficiary = data.reduce((sum, item) => sum + (item.Total_Mapped_Beneficiary || 0), 0);
+    const surveyCompleted = data.reduce((sum, item) => sum + (item.Survey_Completed_Beneficiary || 0), 0);
 
     return (
         <div className="p-4 max-w-7xl mx-auto min-h-screen flex flex-col bg-slate-50/50 dark:bg-slate-900/50 pb-12 transition-colors duration-300">
@@ -216,6 +238,30 @@ const SurveyStatistics = () => {
                                         <td className="px-5 py-3 text-slate-600 dark:text-slate-400 text-right font-medium">{(item.Survey_Completed_Beneficiary || 0).toLocaleString()}</td>
                                     </tr>
                                 ))
+                            )}
+                            {/* TOTAL Row */}
+                            {!loading && data.length > 0 && (
+                                <tr className="bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group border-t-2 border-slate-300 dark:border-slate-600">
+                                    <td className="px-5 py-4 font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-3 sticky left-0 z-10 bg-slate-100 dark:bg-slate-800/80 shadow-[1px_0_0_0_rgba(241,245,249,1)] dark:shadow-[1px_0_0_0_rgba(51,65,85,0.5)]">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                        TOTAL
+                                    </td>
+                                    <td className="px-5 py-4 text-right">
+                                        <span className="bg-slate-200 dark:bg-slate-700/80 text-slate-800 dark:text-slate-200 px-2 py-1 rounded font-bold text-xs">{totalSHG.toLocaleString()}</span>
+                                    </td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalMappedSHG.toLocaleString()}</td>
+                                    
+                                    <td className="px-5 py-4 text-right">
+                                        <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 px-2 py-1 rounded font-bold text-xs">{totalCM.toLocaleString()}</span>
+                                    </td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalMappedCM.toLocaleString()}</td>
+                                    
+                                    <td className="px-5 py-4 text-right">
+                                        <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded font-bold text-xs">{totalBeneficiary.toLocaleString()}</span>
+                                    </td>
+                                    <td className="px-5 py-4 text-slate-800 dark:text-slate-200 text-right font-black">{totalMappedBeneficiary.toLocaleString()}</td>
+                                    <td className="px-5 py-4 text-indigo-700 dark:text-indigo-400 text-right font-black">{surveyCompleted.toLocaleString()}</td>
+                                </tr>
                             )}
                         </tbody>
                     </table>

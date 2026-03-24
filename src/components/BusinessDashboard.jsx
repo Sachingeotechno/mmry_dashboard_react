@@ -7,7 +7,7 @@ import {
     fetchBusinessUsed10kType
 } from '../service/datalayer';
 import { Briefcase, Activity, TrendingUp, HelpCircle, DollarSign, Award, Download, Building, ChevronLeft, ChevronRight, FileText, Maximize2, X } from 'lucide-react';
-import { Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -104,6 +104,9 @@ const BusinessDashboard = () => {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // View Mode State
+    const [viewMode, setViewMode] = useState('district'); // 'district' | 'overview'
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -402,6 +405,41 @@ const BusinessDashboard = () => {
         }
     };
 
+    const getAggregatedData = (dataArray, keys) => {
+        const total = {};
+        keys.forEach(k => total[k] = 0);
+        dataArray.forEach(item => {
+            keys.forEach(k => {
+                total[k] += parseInt(item[k]) || 0;
+            });
+        });
+        return keys.map(k => ({ name: k, value: total[k] }));
+    };
+
+    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+        const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
+        const y = cy + radius * Math.sin(-midAngle * Math.PI / 180);
+        
+        return percent > 0.05 ? (
+            <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" className="text-[12px] font-bold z-10">
+                {`${(percent * 100).toFixed(0)}%`}
+            </text>
+        ) : null;
+    };
+
+    const overviewReception = getAggregatedData(find10kData || [], ['Yes_Count', 'No_Count']).map(item => ({...item, name: item.name === 'Yes_Count' ? 'Received (Yes)' : 'Not Received (No)'}));
+    const overviewAwareness = getAggregatedData(knowledgeData || [], ['Yes_Count', 'No_Count']).map(item => ({...item, name: item.name === 'Yes_Count' ? 'Aware (Yes)' : 'Unaware (No)'}));
+    const overviewPreSupport = getAggregatedData(before10kData || [], ['Employee', 'Farm', 'Labour', 'Livestock', 'Own_Business', 'Others']).map(item => ({...item, name: item.name.replace('_', ' ')}));
+    const overviewUtilization = getAggregatedData(use10kData || [], ['Spent_in_Old_Business', 'Start_New_Business', 'Not_Invested']).map(item => {
+        let name = item.name;
+        if(name === 'Spent_in_Old_Business') name = 'Old Business';
+        else if(name === 'Start_New_Business') name = 'New Business';
+        else if(name === 'Not_Invested') name = 'Not Invested';
+        return { ...item, name };
+    });
+    const overviewSectoral = getAggregatedData(used10kTypeData || [], ['Farm', 'Livestock', 'Small_Business', 'Service_Based', 'Skill_Based', 'No_Business']).map(item => ({...item, name: item.name.replace('_', ' ')}));
+
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full animate-in fade-in duration-500 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen transition-colors duration-300">
             {/* Main Dashboard UI - Hidden during print */}
@@ -414,21 +452,37 @@ const BusinessDashboard = () => {
                             Business Performance
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400 font-bold mt-2 text-lg">Detailed analysis of fund usage and entrepreneurial impact</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-4">
+                    </div>                    <div className="flex flex-nowrap items-center gap-2 lg:gap-3 overflow-x-auto no-scrollbar pb-2 md:pb-0 w-full md:w-auto">
+                        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
+                            <button
+                                onClick={() => setViewMode('overview')}
+                                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap ${
+                                    viewMode === 'overview' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                Total Overview
+                            </button>
+                            <button
+                                onClick={() => setViewMode('district')}
+                                className={`px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold transition-all whitespace-nowrap ${
+                                    viewMode === 'district' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                                }`}
+                            >
+                                District Wise
+                            </button>
+                        </div>
                         <button
                             onClick={handleExportPDFOnlyTables}
-                            className="flex items-center gap-3 px-6 py-3.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-800 text-white rounded-2xl font-black text-sm shadow-xl shadow-slate-200 dark:shadow-none transition-all active:scale-95 group"
+                            className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-800 text-white rounded-xl font-black text-xs md:text-sm shadow-md transition-all active:scale-95 group shrink-0 whitespace-nowrap"
                         >
-                            <FileText className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                            Export Report (PDF)
+                            <FileText className="w-4 h-4 md:w-5 md:h-5 group-hover:scale-110 transition-transform" />
+                            Export PDF
                         </button>
                         <button
                             onClick={handleExportExcel}
-                            className="flex items-center gap-3 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-indigo-200 dark:shadow-none transition-all active:scale-95 group"
+                            className="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-xl font-black text-xs md:text-sm shadow-md transition-all active:scale-95 group shrink-0 whitespace-nowrap"
                         >
-                            <Download className="w-5 h-5 group-hover:animate-bounce" />
+                            <Download className="w-4 h-4 md:w-5 md:h-5 group-hover:animate-bounce" />
                             Export Excel
                         </button>
                         {/* Print feature temporarily disabled
@@ -443,7 +497,59 @@ const BusinessDashboard = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
+                {viewMode === 'overview' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-10 w-full animate-in fade-in duration-500 delay-100 fill-mode-both">
+                        {[
+                            { title: 'Beneficiaries who confirmed receiving ₹10,000', icon: <DollarSign className="w-5 h-5 text-emerald-500" />, data: overviewReception, colors: ['#10b981', '#f43f5e'] },
+                            { title: 'Beneficiary knowledge about the MMRY scheme', icon: <HelpCircle className="w-5 h-5 text-blue-500" />, data: overviewAwareness, colors: ['#3b82f6', '#94a3b8'] },
+                            { title: 'Initial business activities before receiving financial support', icon: <Building className="w-5 h-5 text-amber-500" />, data: overviewPreSupport, colors: COLORS },
+                            { title: 'How beneficiaries decided to use the received capital', icon: <Activity className="w-5 h-5 text-purple-500" />, data: overviewUtilization, colors: ['#f59e0b', '#8b5cf6', '#94a3b8'] },
+                            { title: 'Specific sectors where funds was utilized', icon: <Award className="w-5 h-5 text-pink-500" />, data: overviewSectoral, colors: [COLORS[1], COLORS[3], COLORS[0], COLORS[4], COLORS[5], COLORS[2]] }
+                        ].map((chart, idx) => (
+                            <div key={idx} className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-6 flex flex-col items-center hover:border-indigo-100 transition-all duration-300">
+                                <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 flex items-center justify-center gap-3 uppercase tracking-wider mb-6 w-full text-center border-b border-slate-100 dark:border-slate-700 pb-4">
+                                    <div className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">{chart.icon}</div>
+                                    <span className="flex-1 text-left">{chart.title}</span>
+                                </h3>
+                                <div className="h-[280px] w-full relative">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={chart.data}
+                                                cx="50%"
+                                                cy="50%"
+                                                labelLine={false}
+                                                label={renderCustomizedLabel}
+                                                outerRadius={105}
+                                                dataKey="value"
+                                                stroke="#ffffff"
+                                                strokeWidth={3}
+                                            >
+                                                {chart.data.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={chart.colors[index % chart.colors.length]} />
+                                                ))}
+                                            </Pie>
+                                            <RechartsTooltip 
+                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '12px 16px' }}
+                                                itemStyle={{ fontWeight: 700, color: '#334155', fontSize: '13px' }}
+                                                formatter={(value, name) => [value.toLocaleString(), name]}
+                                            />
+                                            <Legend 
+                                                iconType="circle" 
+                                                layout="horizontal" 
+                                                verticalAlign="bottom" 
+                                                align="center" 
+                                                wrapperStyle={{ paddingTop: '10px', fontSize: '11px', fontWeight: 600, color: '#64748b' }} 
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="animate-in fade-in duration-500">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-10">
 
                     {/* KPI 1: Found 10k Amount */}
                     <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 flex flex-col h-full hover:border-indigo-100 transition-all duration-300">
@@ -754,6 +860,8 @@ const BusinessDashboard = () => {
                         />
                     </div>
                 </div>
+            </div>
+            )}
             </div>
 
             {/* Print Only Report Section - Temporarily Hidden */}
@@ -1089,6 +1197,32 @@ const ChartDetailModal = ({ isOpen, onClose, config }) => {
                                                 ))}
                                             </tr>
                                         ))}
+                                        {/* TOTAL Row */}
+                                        {sortedData.length > 0 && (
+                                            <tr className="bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group border-t-2 border-slate-300 dark:border-slate-600">
+                                                {config.columns.map((col, colIdx) => {
+                                                    const isLabel = colIdx === 0 || col.key === 'district_name';
+                                                    let value = 'TOTAL';
+                                                    if (!isLabel) {
+                                                        const sum = sortedData.reduce((acc, item) => {
+                                                            const val = parseFloat(item[col.key]);
+                                                            return acc + (isNaN(val) ? 0 : val);
+                                                        }, 0);
+                                                        value = sum.toLocaleString();
+                                                    }
+                                                    return (
+                                                        <td key={`total-${colIdx}`} className={`px-4 py-3 text-sm font-black whitespace-nowrap ${colIdx === 0 ? 'text-left text-slate-900 dark:text-slate-100' : 'text-right text-indigo-700 dark:text-indigo-400'}`}>
+                                                            {isLabel ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                                                    TOTAL
+                                                                </div>
+                                                            ) : value}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
