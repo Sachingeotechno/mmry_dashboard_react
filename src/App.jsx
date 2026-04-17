@@ -17,6 +17,24 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Only allows utype === '1'
+const BusinessProtectedRoute = ({ children }) => {
+  const token = localStorage.getItem('token') || localStorage.getItem('userData');
+  if (!token) return <Navigate to="/login" replace />;
+
+  try {
+    const raw = localStorage.getItem('userData');
+    const user = raw ? JSON.parse(raw) : null;
+    if (String(user?.utype) !== '1') {
+      return <Navigate to="/" replace />;
+    }
+  } catch {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 function Layout({ children }) {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
@@ -43,7 +61,7 @@ function App() {
             {/* If we strictly want the first page to be login regardless of old tokens, we might need to clear them, but standard practice is token check. */}
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/datewise" element={<ProtectedRoute><DateWiseDashboard /></ProtectedRoute>} />
-            <Route path="/business" element={<ProtectedRoute><BusinessDashboard /></ProtectedRoute>} />
+            <Route path="/business" element={<BusinessProtectedRoute><BusinessDashboard /></BusinessProtectedRoute>} />
             <Route path="/businessstats" element={<ProtectedRoute><BusinessStatistics /></ProtectedRoute>} />
             <Route path="/surveystats" element={<ProtectedRoute><SurveyStatistics /></ProtectedRoute>} />
             {/* Catch-all route mapping to login */}

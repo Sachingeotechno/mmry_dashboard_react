@@ -33,7 +33,6 @@ const Login = () => {
 
             // Store full user data and specifically the token (stored in password field per requirement)
             setUserData(response);
-            console.log(response);
             localStorage.setItem('token', response.password);
 
             toast.success("Login Successful");

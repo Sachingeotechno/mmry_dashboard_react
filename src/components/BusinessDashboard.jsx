@@ -6,6 +6,7 @@ import {
     fetchBusinessUse10k,
     fetchBusinessUsed10kType
 } from '../service/datalayer';
+import { Userdata } from '../service/api';
 import { Briefcase, Activity, TrendingUp, HelpCircle, DollarSign, Award, Download, Building, ChevronLeft, ChevronRight, FileText, Maximize2, X } from 'lucide-react';
 import { Tooltip as RechartsTooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
@@ -96,6 +97,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const BusinessDashboard = () => {
+    const userData = Userdata();
+
     const [find10kData, setFind10kData] = useState([]);
     const [knowledgeData, setKnowledgeData] = useState([]);
     const [before10kData, setBefore10kData] = useState([]);
@@ -166,6 +169,7 @@ const BusinessDashboard = () => {
             </div>
         );
     }
+
 
     if (error) {
         return (

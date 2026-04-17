@@ -2,11 +2,14 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Calendar, Briefcase, ClipboardList, Sun, Moon, LogOut, PieChart } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { Userdata } from '../service/api';
 import toast from 'react-hot-toast';
 
 const Navigation = () => {
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
+    const userData = Userdata();
+    const canSeeBusinessPage = String(userData?.utype) === '1';
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -55,18 +58,20 @@ const Navigation = () => {
                             <Calendar className="w-4 h-4" />
                             Date-wise
                         </NavLink>
-                        <NavLink
-                            to="/business"
-                            className={({ isActive }) =>
-                                `px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${isActive
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
-                                }`
-                            }
-                        >
-                            <Briefcase className="w-4 h-4" />
-                            Business Performance
-                        </NavLink>
+                        {canSeeBusinessPage && (
+                            <NavLink
+                                to="/business"
+                                className={({ isActive }) =>
+                                    `px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${isActive
+                                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
+                                    }`
+                                }
+                            >
+                                <Briefcase className="w-4 h-4" />
+                                Business Performance
+                            </NavLink>
+                        )}
                         <NavLink
                             to="/surveystats"
                             className={({ isActive }) =>
@@ -140,18 +145,20 @@ const Navigation = () => {
                         <Calendar className="w-3.5 h-3.5" />
                         Date-wise
                     </NavLink>
-                    <NavLink
-                        to="/business"
-                        className={({ isActive }) =>
-                            `px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none'
-                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-300'
-                            }`
-                        }
-                    >
-                        <Briefcase className="w-3.5 h-3.5" />
-                        Business Performance
-                    </NavLink>
+                    {canSeeBusinessPage && (
+                        <NavLink
+                            to="/business"
+                            className={({ isActive }) =>
+                                `px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:shadow-none'
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-300'
+                                }`
+                            }
+                        >
+                            <Briefcase className="w-3.5 h-3.5" />
+                            Business Performance
+                        </NavLink>
+                    )}
                     <NavLink
                         to="/surveystats"
                         className={({ isActive }) =>

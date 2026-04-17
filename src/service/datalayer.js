@@ -61,6 +61,28 @@ export const fetchSurveyStatistics = async (districtId = 0) => {
     }
 };
 
+export const fetchSurveyByPanchayat = async (districtId, blockId) => {
+    try {
+        const url = `/Report/surverybypanchayat?district_id=${districtId}&block_id=${blockId}`;
+        const response = await service.fetchData(url);
+        return response.statistics || [];
+    } catch (error) {
+        toast.error(`Error fetching panchayat survey data: ${error.details || error.message || "Unknown error"}`);
+        return [];
+    }
+};
+
+export const fetchSurveyByCM = async (districtId, blockId, panchayatId) => {
+    try {
+        const url = `/Report/surverybycm?district_id=${districtId}&block_id=${blockId}&panchayat_id=${panchayatId}`;
+        const response = await service.fetchData(url);
+        return response.statistics || [];
+    } catch (error) {
+        toast.error(`Error fetching CM survey data: ${error.details || error.message || "Unknown error"}`);
+        return [];
+    }
+};
+
 export const fetchBusinessStatistics = async (districtId = 0) => {
     try {
         const url = `/Report/businessapplystatisticsreport?district_id=${districtId}`;

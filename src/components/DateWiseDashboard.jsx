@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { fetchAchievementByDateRange } from '../service/datalayer';
 import { Calendar, Activity, ChevronRight, ChevronLeft, Download, Filter } from 'lucide-react';
 import { Tooltip as ReactTooltip } from 'react-tooltip';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 const getFormattedDate = (date) => {
     const pad = (n) => n < 10 ? '0' + n : n;
@@ -39,6 +39,7 @@ const getQuickDates = (range) => {
 
 const DateWiseDashboard = () => {
     const [data, setData] = useState([]);
+    const [dateWiseData, setDateWiseData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [activeFilter, setActiveFilter] = useState('today');
@@ -63,6 +64,26 @@ const DateWiseDashboard = () => {
                 }, {});
 
                 setData(Object.values(aggregated));
+
+                // Date-wise aggregation
+                const dateAggregatedObj = {};
+                result.forEach(curr => {
+                    if (!curr.achievement_date) return;
+                    const d = new Date(curr.achievement_date);
+                    if (isNaN(d.getTime())) return;
+                    const dateKey = d.toISOString().split('T')[0];
+                    if (!dateAggregatedObj[dateKey]) {
+                        dateAggregatedObj[dateKey] = { 
+                            date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), 
+                            timestamp: d.getTime(),
+                            total_achieved: 0 
+                        };
+                    }
+                    dateAggregatedObj[dateKey].total_achieved += (curr.total_achieved || 0);
+                });
+                
+                const sortedDateData = Object.values(dateAggregatedObj).sort((a, b) => a.timestamp - b.timestamp);
+                setDateWiseData(sortedDateData);
             } catch (err) {
                 setError(err.message || 'Error loading date-wise KPI data');
             } finally {
@@ -150,58 +171,33 @@ const DateWiseDashboard = () => {
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Detailed performance tracking by specific dates</p>
                 </div>
-                <div className="flex flex-col items-end gap-3 max-w-2xl">
-                    <div className="flex flex-wrap justify-end gap-2">
-                        {[
-                            { id: 'today', label: 'Today' },
-                            { id: 'current-week', label: 'Current Week' },
-                            { id: 'last-two-weeks', label: 'Last Two Weeks' },
-                            { id: 'one-month', label: 'One Month' },
-                            { id: 'custom', label: 'Custom' }
-                        ].map(filter => (
-                            <button
-                                key={filter.id}
-                                onClick={() => handleFilterChange(filter.id)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
-                                    activeFilter === filter.id 
-                                        ? 'bg-indigo-600 text-white shadow-indigo-200 dark:shadow-none' 
-                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 border border-slate-200 dark:border-slate-700'
-                                }`}
-                            >
-                                {filter.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-end gap-3 mt-1">
-                        {activeFilter === 'custom' && (
-                            <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
-                                <label className="text-sm font-bold text-slate-600 dark:text-slate-300 ml-2">From:</label>
-                                <input
-                                    type="date"
-                                    value={fdate}
-                                    onChange={(e) => setFdate(e.target.value)}
-                                    max={getFormattedDate(new Date())}
-                                    className="bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                                <label className="text-sm font-bold text-slate-600 dark:text-slate-300 ml-2">To:</label>
-                                <input
-                                    type="date"
-                                    value={tdate}
-                                    onChange={(e) => setTdate(e.target.value)}
-                                    max={getFormattedDate(new Date())}
-                                    className="bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                />
-                            </div>
-                        )}
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 max-w-full w-full md:w-auto mt-4 md:mt-0">
+                    {[
+                        { id: 'today', label: 'Today' },
+                        { id: 'current-week', label: 'Current Week' },
+                        { id: 'last-two-weeks', label: 'Last Two Weeks' },
+                        { id: 'one-month', label: 'One Month' }
+                    ].map(filter => (
                         <button
-                            onClick={exportToCSV}
-                            className="flex items-center gap-2 px-5 py-2-[10px] bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md shadow-indigo-200 dark:shadow-none transition-all active:scale-95 h-full"
+                            key={filter.id}
+                            onClick={() => handleFilterChange(filter.id)}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm whitespace-nowrap shrink-0 ${
+                                activeFilter === filter.id 
+                                    ? 'bg-indigo-600 text-white shadow-indigo-200 dark:shadow-none' 
+                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 border border-slate-200 dark:border-slate-700'
+                            }`}
                         >
-                            <Download className="w-4 h-4" />
-                            Export
+                            {filter.label}
                         </button>
-                    </div>
+                    ))}
+                    
+                    <button
+                        onClick={exportToCSV}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md transition-all active:scale-95 shrink-0"
+                    >
+                        <Download className="w-4 h-4 shrink-0" />
+                        Export
+                    </button>
                 </div>
             </div>
 
@@ -217,6 +213,48 @@ const DateWiseDashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Trend Chart Section */}
+            {dateWiseData.length > 0 && (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
+                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-indigo-600" />
+                        Daily Achievement Trend
+                    </h3>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={dateWiseData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                <XAxis 
+                                    dataKey="date" 
+                                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                                    axisLine={{ stroke: '#e2e8f0' }} 
+                                    tickLine={false} 
+                                    dy={10} 
+                                />
+                                <YAxis 
+                                    tick={{ fill: '#64748b', fontSize: 12 }} 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                />
+                                <RechartsTooltip 
+                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="total_achieved" 
+                                    name="Total Achieved" 
+                                    stroke="#4f46e5" 
+                                    strokeWidth={3}
+                                    dot={{ fill: '#ffffff', strokeWidth: 2, r: 4, stroke: '#4f46e5' }}
+                                    activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
 
             {/* Chart Section */}
             {data.length > 0 && (
